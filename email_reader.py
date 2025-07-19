@@ -96,9 +96,13 @@ def extract_stream_info(soup):
 
                     title_tag = soup.find("strong")
                     stream_title = title_tag.text.strip() if title_tag else "Không có tiêu đề"
+                    
+                    # Lấy tên game từ thẻ <a>
+                    game_tag = soup.find("a", text=re.compile(r"Đang truyền phát .*"))
+                    game_name = game_tag.text.split('Đang truyền phát ')[-1].strip() if game_tag else "Không có thông tin game"
 
                     if username and username != "email-unsubscribe":
-                        return f"🔥 {username} đang phát trực tiếp: {stream_link} \n{stream_title}"
+                        return f"🔥 {username} đang phát trực tiếp {game_name}: {stream_link} \n{stream_title}"
 
         print("[🔍] Không tìm thấy thông tin stream.")
         return None
