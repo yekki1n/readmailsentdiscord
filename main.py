@@ -27,7 +27,7 @@ def send_to_discord(messages):
                 print(f"[❗] Discord webhook failed: {response.status_code} - {response.text}")
             else:
                 print(f"[✅] Đã gửi thông báo: {message_html}")
-                log_to_file(f"[🚀] Gửi Discord...\n[✅] Đã gửi thông báo: {message_html}")
+                log_to_file(f"\n\n[✅] Đã gửi thông báo: {message_html}")
 
     except Exception as e:
         print(f"[❌] Gửi Discord thất bại: {e}")
