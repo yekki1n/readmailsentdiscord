@@ -22,15 +22,17 @@ def read_latest_game_email():
         result, data = mail.search(None, '(FROM "twitch")')
         if result != "OK":
             print("[❌] Không thể tìm email.")
-            return None
+            return []
 
         mail_ids = data[0].split()
         if not mail_ids:
             print("[❌] Không có email nào khớp.")
-            return None
+            return []
 
         latest_emails = reversed(mail_ids[-10:])
         print(f"[ℹ️] Đang kiểm tra {len(mail_ids[-10:])} email gần đây...")
+
+        valid_streams = []  # Danh sách để lưu thông tin stream hợp lệ
 
         for mail_id in latest_emails:
             result, data = mail.fetch(mail_id, "(RFC822)")
@@ -46,21 +48,29 @@ def read_latest_game_email():
                         html_body = part.get_payload(decode=True).decode()
                         soup = BeautifulSoup(html_body, "html.parser")
                         if contains_game(soup):
-                            return extract_stream_info(soup)
+                            stream_info = extract_stream_info(soup)
+                            if stream_info:
+                                valid_streams.append((stream_info, mail_id))  # Lưu cả thông tin và mail_id
             else:
                 if msg.get_content_type() == "text/html":
                     html_body = msg.get_payload(decode=True).decode()
                     soup = BeautifulSoup(html_body, "html.parser")
                     if contains_game(soup):
-                        return extract_stream_info(soup)
+                        stream_info = extract_stream_info(soup)
+                        if stream_info:
+                            valid_streams.append((stream_info, mail_id))  # Lưu cả thông tin và mail_id
 
-        print("[🔍] Không tìm thấy stream.")
-        return None
+        # Xóa các email đã xử lý
+        for _, mail_id in valid_streams:
+            mail.store(mail_id, '+FLAGS', '\\Deleted')
+
+        mail.expunge()  # Thực hiện xóa các email đã đánh dấu
+
+        return [info for info, _ in valid_streams]  # Trả về chỉ thông tin stream
 
     except Exception as e:
         print(f"[❌] Lỗi khi đọc email: {e}")
-        return None
-
+        return []
 
 def contains_game(soup):
     keywords = ["valorant", "league of legends", "lol", "stream", "live", "playing", "watch", "radiant", "lp", "rr", "rank", "teamfight tactics"]
@@ -74,27 +84,25 @@ def extract_stream_info(soup):
         title = soup.title.string if soup.title else ""
         body_text = ' '.join(soup.stripped_strings)
 
-        # Kiểm tra nhiều trò chơi
         if any(keyword in title.lower() for keyword in ["valorant", "league of legends", "lol", "radiant", "lp", "rr", "rank", "teamfight tactics"]) or \
            any(keyword in body_text.lower() for keyword in ["valorant", "league of legends", "lol", "radiant", "lp", "rr", "rank", "teamfight tactics"]):
 
-            # Tìm tất cả các thẻ <a>
             link_tags = soup.find_all("a", text=re.compile(r"twitch\.tv/[^/]+"))
 
             for link_tag in link_tags:
                 if link_tag.string and "twitch.tv" in link_tag.string:
-                    stream_link = link_tag.string.strip()  # Lấy văn bản
+                    stream_link = link_tag.string.strip()
                     username = stream_link.rstrip("/").split("/")[-1]
-                    # Tìm tiêu đề stream trong thẻ <strong>
-                title_tag = soup.find("strong")
-                stream_title = title_tag.text.strip() if title_tag else "Không có tiêu đề"
 
-                if username and username != "email-unsubscribe":
-                    return f"🔥 {username} đang phát trực tiếp: {stream_link} \nTiêu đề: {stream_title}"
+                    title_tag = soup.find("strong")
+                    stream_title = title_tag.text.strip() if title_tag else "Không có tiêu đề"
+
+                    if username and username != "email-unsubscribe":
+                        return f"🔥 {username} đang phát trực tiếp: {stream_link} \n{stream_title}"
 
         print("[🔍] Không tìm thấy thông tin stream.")
-        return "Không có thông tin về streamer đang phát trực tiếp."
+        return None
 
     except Exception as e:
         print(f"[❌] Lỗi khi xử lý HTML: {e}")
-        return "Đã xảy ra lỗi trong quá trình xử lý thông tin."
+        return None
